@@ -61,29 +61,62 @@ def load_user(user_id):
 # RULE-BASED AI LAYER
 
 
-def rule_based_logic(data, predicted_level):
-    burnout = 0
-    suggestion = "Maintain balance and healthy habits."
+def rule_based_logic(data, predicted_level, confidence):
+    burnout_risk = 0
+    stress_weight_adjustment = 0
 
+    
+    # Sleep Deprivation
+    
     if data['sleep_hours'] < 6:
-        burnout += 20
+        burnout_risk += 20
+        stress_weight_adjustment += 5
 
+    
+    #  Overwork + Low Mood
+    
     if data['study_hours'] > 6 and data['mood_level'] < 4:
-        burnout += 30
+        burnout_risk += 30
+        stress_weight_adjustment += 10
 
-    if data['performance_trend'] == -1 and predicted_level == "High":
-        burnout += 30
+    
+    #  Declining Performance
+    
+    if data['performance_trend'] == -1:
+        burnout_risk += 20
 
+    
+    #  High Assignment Pressure
+    
     if data['assignment_pressure'] > 8:
-        burnout += 20
+        burnout_risk += 25
 
-    if burnout > 60:
-        suggestion = "High burnout risk. Consider rest and academic support."
-    elif burnout > 30:
-        suggestion = "Moderate burnout risk. Improve sleep and workload management."
+    
+    #  Low Study Consistency
+    
+    if data['study_consistency'] < 4:
+        burnout_risk += 15
 
-    return min(burnout, 100), suggestion
+    
+    # Adjust Based on ML Confidence
+    
+    if predicted_level == "High" and confidence > 80:
+        burnout_risk += 15
 
+    # Cap at 100%
+    burnout_risk = min(burnout_risk, 100)
+
+    
+    # Suggested Action Logic
+    
+    if burnout_risk > 70:
+        suggestion = "Critical burnout risk. Immediate rest and academic counseling recommended."
+    elif burnout_risk > 40:
+        suggestion = "Moderate burnout risk. Improve sleep and reduce workload."
+    else:
+        suggestion = "Stable condition. Maintain healthy routine."
+
+    return burnout_risk, suggestion
 
 
 # ROUTES
@@ -170,13 +203,13 @@ def daily_form():
 
         # Rule-based logic
         burnout, suggestion = rule_based_logic({
-            "study_hours": study_hours,
-            "sleep_hours": sleep_hours,
-            "mood_level": mood_level,
-            "assignment_pressure": assignment_pressure,
-            "study_consistency": study_consistency,
-            "performance_trend": performance_trend
-        }, predicted_level)
+        "study_hours": study_hours,
+        "sleep_hours": sleep_hours,
+        "mood_level": mood_level,
+        "assignment_pressure": assignment_pressure,
+        "study_consistency": study_consistency,
+        "performance_trend": performance_trend
+        }, predicted_level, confidence)
 
         # Save prediction
         result = StressPredictionResult(
