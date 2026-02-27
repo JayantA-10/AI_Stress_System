@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Stress Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h2>StressAI</h2>
+        <a href="/dashboard" class="active">Overview</a>
+        <a href="/daily_form">Daily Log</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/logout">Logout</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+
+        <!-- Top Bar -->
+        <div class="topbar">
+            <h2>Welcome Back, {{ current_user.username }}</h2>
+        </div>
+
+        {% if result %}
+        <!-- Stats Cards -->
+        <div class="cards">
+
+            <div class="card stat">
+                <h4>Stress Level</h4>
+                <h2>{{ result.stress_prediction }}</h2>
+            </div>
+
+            <div class="card stat">
+                <h4>Confidence</h4>
+                <h2>{{ result.stress_confidence }}%</h2>
+            </div>
+
+            <div class="card stat">
+                <h4>Burnout Risk</h4>
+                <h2>{{ result.burnout_risk }}%</h2>
+            </div>
+
+        </div>
+
+        <!-- Chart Section -->
+        <div class="card">
+            <h3>Stress Confidence Trend</h3>
+            <canvas id="stressChart" data-stress-value="{{ result.stress_confidence if result else 0 }}"></canvas>
+        </div>
+
+        <!-- Suggestion Section -->
+        <div class="card">
+            <h3>AI Recommendation</h3>
+            <p>{{ result.suggested_action }}</p>
+        </div>
+
+        {% else %}
+        <div class="card">
+            <p>No stress data available yet.</p>
+            <a href="/daily_form">Add Daily Log</a>
+        </div>
+        {% endif %}
+
+    </div>
+
+</div>
+
+<script>
+const stressValue = parseFloat(document.getElementById('stressChart').dataset.stressValue);
+const stressData = [stressValue];
+new Chart(document.getElementById('stressChart'), {
+    type: 'line',
+    data: {
+        labels: ["Latest Entry"],
+        datasets: [{
+            label: "Stress Confidence %",
+            data: stressData,
+            borderColor: "#4f46e5",
+            fill: false,
+            tension: 0.4
+        }]
+    }
+});
+</script>
+
+</body>
+</html>

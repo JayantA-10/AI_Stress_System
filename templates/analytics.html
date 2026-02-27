@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stress Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h2>Stress Confidence Trend</h2>
+
+        <canvas id="stressChart"></canvas>
+    </div>
+
+    <a href="/dashboard">Back to Dashboard</a>
+</div>
+
+<script>
+    const stressData = (( stress_levels | tojson | safe ));
+
+    const labels = stressData.map(function(_, index) {
+        return "Entry " + (index + 1);
+    });
+
+    new Chart(document.getElementById('stressChart'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Stress Confidence %",
+                data: stressData,
+                borderColor: "#3b82f6",
+                backgroundColor: "rgba(59,130,246,0.1)",
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

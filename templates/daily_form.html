@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Daily Input</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h2>Daily Stress Log</h2>
+
+        <form method="POST">
+            <label>Study Hours</label>
+            <input name="study_hours" type="number" step="0.1" required>
+
+            <label>Sleep Hours</label>
+            <input name="sleep_hours" type="number" step="0.1" required>
+
+            <label>Mood Level (1-10)</label>
+            <input name="mood_level" type="number" min="1" max="10" required>
+
+            <label>Assignment Pressure (1-10)</label>
+            <input name="assignment_pressure" type="number" min="1" max="10" required>
+
+            <label>Study Consistency (1-10)</label>
+            <input name="study_consistency" type="number" min="1" max="10" required>
+
+            <label>Performance Trend (-1 Decline, 0 Stable, 1 Improve)</label>
+            <select name="performance_trend">
+                <option value="-1">Declining</option>
+                <option value="0">Stable</option>
+                <option value="1">Improving</option>
+            </select>
+
+            <button type="submit">Analyze Stress</button>
+        </form>
+
+        <a href="/dashboard">Back to Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

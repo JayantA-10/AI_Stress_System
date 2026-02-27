@@ -240,8 +240,9 @@ def dashboard():
 @app.route("/analytics")
 @login_required
 def analytics():
-    logs = DailyStressLog.query.filter_by(user_id=current_user.id).all()
-    stress_results = StressPredictionResult.query.filter_by(user_id=current_user.id).all()
+    stress_results = StressPredictionResult.query.filter_by(
+        user_id=current_user.id
+    ).all()
 
     stress_levels = [r.stress_confidence for r in stress_results]
 
