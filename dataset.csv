@@ -1,33 +1,33 @@
-study_hours,sleep_hours,mood_level,assignment_pressure,study_consistency,performance_trend,stress_level
-3,8,9,2,8,1,Low
-4,7.5,8,3,9,1,Low
-2,9,10,1,9,0,Low
-5,7,7,3,8,1,Low
-3.5,8.5,8,2,10,1,Low
-4.5,7.8,9,3,7,0,Low
-2.5,8.2,8,2,8,1,Low
-3,7.5,7,4,7,0,Low
-4,8,9,3,9,1,Low
-5,7,8,4,8,0,Low
+student_name,study_hours,sleep_hours,mood_level,assignment_pressure,study_consistency,performance_trend,stress_level
+Aarav Sharma,3,8,9,2,8,1,Low
+Ishita Rao,4,7.5,8,3,9,1,Low
+Rohan Mehta,2,9,10,1,9,0,Low
+Sneha Iyer,5,7,7,3,8,1,Low
+Aditya Verma,3.5,8.5,8,2,10,1,Low
+Kavya Nair,4.5,7.8,9,3,7,0,Low
+Arjun Patel,2.5,8.2,8,2,8,1,Low
+Diya Singh,3,7.5,7,4,7,0,Low
+Rahul Desai,4,8,9,3,9,1,Low
+Meera Kapoor,5,7,8,4,8,0,Low
 
-6,6.5,6,5,6,0,Moderate
-5.5,6,5,6,5,-1,Moderate
-7,6,4,7,6,0,Moderate
-6.5,6.2,6,6,7,-1,Moderate
-5,6.8,7,5,6,0,Moderate
-6,6.5,5,6,5,-1,Moderate
-7,6,6,7,6,0,Moderate
-5.5,6.5,5,5,5,-1,Moderate
-6.5,6.2,6,6,6,0,Moderate
-6,6.8,4,7,5,-1,Moderate
+Kunal Reddy,6,6.5,6,5,6,0,Moderate
+Ananya Gupta,5.5,6,5,6,5,-1,Moderate
+Vikram Joshi,7,6,4,7,6,0,Moderate
+Priya Menon,6.5,6.2,6,6,7,-1,Moderate
+Nikhil Bansal,5,6.8,7,5,6,0,Moderate
+Simran Kaur,6,6.5,5,6,5,-1,Moderate
+Harsh Malhotra,7,6,6,7,6,0,Moderate
+Pooja Shah,5.5,6.5,5,5,5,-1,Moderate
+Siddharth Jain,6.5,6.2,6,6,6,0,Moderate
+Tanvi Kulkarni,6,6.8,4,7,5,-1,Moderate
 
-8,5,3,8,4,-1,High
-9,4.5,2,9,3,-1,High
-7.5,5.5,4,8,5,-1,High
-8.5,4,3,9,2,-1,High
-9,3.5,2,10,3,-1,High
-7.8,5,3,8,4,-1,High
-8,4.5,1,9,2,-1,High
-9.5,3.8,2,10,2,-1,High
-8.2,5.2,3,8,4,-1,High
-7.5,5,4,9,3,-1,High
+Yash Thakur,8,5,3,8,4,-1,High
+Riya Choudhary,9,4.5,2,9,3,-1,High
+Dev Agarwal,7.5,5.5,4,8,5,-1,High
+Anushka Pillai,8.5,4,3,9,2,-1,High
+Manav Arora,9,3.5,2,10,3,-1,High
+Tanya Bhatt,7.8,5,3,8,4,-1,High
+Kabir Sethi,8,4.5,1,9,2,-1,High
+Ira Srivastava,9.5,3.8,2,10,2,-1,High
+Dhruv Mishra,8.2,5.2,3,8,4,-1,High
+Myra Ghosh,7.5,5,4,9,3,-1,High
