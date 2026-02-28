@@ -1,42 +1,74 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Daily Input</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-<div class="container">
-    <div class="card">
-        <h2>Daily Stress Log</h2>
+{% extends "base.html" %}
+{% block title %}Log Today — StressAI{% endblock %}
+{% block content %}
+<div class="container" style="max-width:640px">
+  <div class="page-header">
+    <h1>Daily Check-in</h1>
+    <p>Fill this in once a day. Your data is used to predict stress levels early.</p>
+  </div>
 
-        <form method="POST">
-            <label>Study Hours</label>
-            <input name="study_hours" type="number" step="0.1" required>
+  <div class="card">
+    <form method="POST">
 
-            <label>Sleep Hours</label>
-            <input name="sleep_hours" type="number" step="0.1" required>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Study Hours <span class="hint">today</span></label>
+          <input type="number" name="study_hours" min="0" max="16" step="0.5" required placeholder="e.g. 5" />
+        </div>
+        <div class="form-group">
+          <label>Sleep Hours <span class="hint">last night</span></label>
+          <input type="number" name="sleep_hours" min="0" max="12" step="0.5" required placeholder="e.g. 7" />
+        </div>
+      </div>
 
-            <label>Mood Level (1-10)</label>
-            <input name="mood_level" type="number" min="1" max="10" required>
+      <div class="form-group">
+        <label>Mood Level <span class="hint">1 = very low &nbsp;·&nbsp; 10 = great</span></label>
+        <div class="range-wrap">
+          <span>😔</span>
+          <input type="range" name="mood_level" id="mood" min="1" max="10" value="5"
+                 oninput="document.getElementById('mood_val').textContent=this.value" />
+          <div class="range-val" id="mood_val">5</div>
+          <span>😊</span>
+        </div>
+      </div>
 
-            <label>Assignment Pressure (1-10)</label>
-            <input name="assignment_pressure" type="number" min="1" max="10" required>
+      <div class="form-group">
+        <label>Assignment Pressure <span class="hint">1 = none &nbsp;·&nbsp; 10 = overwhelming</span></label>
+        <div class="range-wrap">
+          <span>📗</span>
+          <input type="range" name="assignment_pressure" id="pressure" min="1" max="10" value="5"
+                 oninput="document.getElementById('pressure_val').textContent=this.value" />
+          <div class="range-val" id="pressure_val">5</div>
+          <span>📕</span>
+        </div>
+      </div>
 
-            <label>Study Consistency (1-10)</label>
-            <input name="study_consistency" type="number" min="1" max="10" required>
+      <div class="form-group">
+        <label>Study Consistency <span class="hint">1 = very irregular &nbsp;·&nbsp; 10 = very consistent</span></label>
+        <div class="range-wrap">
+          <span>📉</span>
+          <input type="range" name="study_consistency" id="consistency" min="1" max="10" value="5"
+                 oninput="document.getElementById('consistency_val').textContent=this.value" />
+          <div class="range-val" id="consistency_val">5</div>
+          <span>📈</span>
+        </div>
+      </div>
 
-            <label>Performance Trend (-1 Decline, 0 Stable, 1 Improve)</label>
-            <select name="performance_trend">
-                <option value="-1">Declining</option>
-                <option value="0">Stable</option>
-                <option value="1">Improving</option>
-            </select>
+      <div class="form-group">
+        <label>Performance Trend <span class="hint">compared to last week</span></label>
+        <select name="performance_trend">
+          <option value="1">📈  Improving</option>
+          <option value="0" selected>➡️  Stable</option>
+          <option value="-1">📉  Declining</option>
+        </select>
+      </div>
 
-            <button type="submit">Analyze Stress</button>
-        </form>
+      <div style="display:flex; gap:0.75rem; margin-top:0.5rem">
+        <button type="submit" class="btn btn-primary">Get My Prediction</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancel</a>
+      </div>
 
-        <a href="/dashboard">Back to Dashboard</a>
-    </div>
+    </form>
+  </div>
 </div>
-</body>
-</html>
+{% endblock %}

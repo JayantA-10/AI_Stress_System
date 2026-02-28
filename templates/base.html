@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}StressAI{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #f5f3ef;
+      --card:     #ffffff;
+      --text:     #1a1814;
+      --muted:    #7a7468;
+      --border:   #e2ddd6;
+      --low:      #2d8a4e;
+      --low-bg:   #edf7f1;
+      --mod:      #c47c20;
+      --mod-bg:   #fef7ec;
+      --high:     #c0392b;
+      --high-bg:  #fdecea;
+      --accent:   #3b6bba;
+      --accent-bg:#eef2fb;
+    }
+
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* NAV */
+    nav {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; display: flex; align-items: center;
+      justify-content: space-between; height: 58px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-brand {
+      font-family: 'DM Serif Display', serif; font-size: 1.2rem;
+      color: var(--text); text-decoration: none;
+    }
+    .nav-brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 0.2rem; align-items: center; }
+    .nav-links a {
+      padding: 0.4rem 0.85rem; border-radius: 6px;
+      font-size: 0.875rem; font-weight: 500; color: var(--muted);
+      text-decoration: none; transition: all 0.15s;
+    }
+    .nav-links a:hover { background: var(--bg); color: var(--text); }
+    .nav-links a.active { color: var(--text); background: var(--bg); }
+    .nav-links a.btn-logout {
+      background: var(--accent); color: white; margin-left: 0.4rem;
+    }
+    .nav-links a.btn-logout:hover { opacity: 0.88; }
+
+    /* LAYOUT */
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { font-family: 'DM Serif Display', serif; font-size: 1.9rem; font-weight: 400; }
+    .page-header p { color: var(--muted); margin-top: 0.35rem; font-size: 0.9rem; }
+
+    /* CARDS */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+    .card-title {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.09em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;
+    }
+
+    /* GRIDS */
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    @media (max-width: 700px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+
+    /* BADGES */
+    .badge { display: inline-block; padding: 0.22rem 0.7rem; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+    .badge-high     { background: var(--high-bg); color: var(--high); }
+    .badge-moderate { background: var(--mod-bg);  color: var(--mod);  }
+    .badge-low      { background: var(--low-bg);  color: var(--low);  }
+    .badge-none     { background: var(--bg);       color: var(--muted);}
+
+    /* STAT */
+    .stat-value { font-family: 'DM Serif Display', serif; font-size: 2.4rem; line-height: 1; }
+    .stat-label { font-size: 0.82rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* FORMS */
+    .form-group { margin-bottom: 1.2rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; }
+    label .hint { font-weight: 400; color: var(--muted); font-size: 0.78rem; margin-left: 0.4rem; }
+    input[type=text], input[type=email], input[type=password],
+    input[type=number], select {
+      width: 100%; padding: 0.6rem 0.85rem;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.9rem; font-family: inherit; background: var(--bg);
+      color: var(--text); transition: border-color 0.15s; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); background: #fff; }
+
+    .range-wrap { display: flex; align-items: center; gap: 0.85rem; }
+    input[type=range] { flex: 1; accent-color: var(--accent); }
+    .range-val {
+      width: 2rem; text-align: center; font-weight: 600;
+      background: var(--accent-bg); color: var(--accent);
+      border-radius: 6px; padding: 0.15rem 0; font-size: 0.88rem;
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-block; padding: 0.6rem 1.4rem; border-radius: 8px;
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      border: none; font-family: inherit; transition: all 0.15s; text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: var(--bg); }
+
+    /* FLASH */
+    .flash-wrap { max-width: 1100px; margin: 0.75rem auto 0; padding: 0 1.5rem; }
+    .flash {
+      padding: 0.7rem 1rem; border-radius: 8px;
+      background: var(--accent-bg); color: var(--accent);
+      font-size: 0.88rem; margin-bottom: 0.5rem;
+    }
+
+    /* AUTH */
+    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+    .auth-card { width: 100%; max-width: 420px; }
+    .auth-card h2 { font-family: 'DM Serif Display', serif; font-size: 1.7rem; font-weight: 400; margin-bottom: 0.2rem; }
+    .auth-card .sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 1.4rem; }
+    .auth-footer { text-align: center; margin-top: 1rem; font-size: 0.84rem; color: var(--muted); }
+    .auth-footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+    /* PROGRESS */
+    .progress-wrap { background: var(--border); border-radius: 99px; height: 7px; overflow: hidden; }
+    .progress-bar  { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+    .pb-high     { background: var(--high); }
+    .pb-moderate { background: var(--mod);  }
+    .pb-low      { background: var(--low);  }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th {
+      text-align: left; padding: 0.55rem 1rem;
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg); }
+
+    /* ALERT BANNER */
+    .alert-banner {
+      background: var(--high-bg); border: 1px solid #f5b8b4;
+      border-radius: 10px; padding: 0.9rem 1.1rem;
+      display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1.25rem;
+    }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 3rem 1rem; }
+    .empty-state .icon { font-size: 2.8rem; margin-bottom: 1rem; }
+    .empty-state h3 { font-family: 'DM Serif Display', serif; font-weight: 400; margin-bottom: 0.4rem; }
+    .empty-state p { color: var(--muted); margin-bottom: 1.4rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+{% if current_user.is_authenticated %}
+<nav>
+  <a class="nav-brand" href="/">Stress<span>AI</span></a>
+  <div class="nav-links">
+    {% if current_user.role == 'counselor' %}
+      <a href="{{ url_for('counselor_dashboard') }}">Counselor View</a>
+    {% else %}
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('daily_form') }}">Log Today</a>
+      <a href="{{ url_for('analytics') }}">Analytics</a>
+    {% endif %}
+    <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+  </div>
+</nav>
+{% endif %}
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <div class="flash-wrap">
+      {% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+
+</body>
+</html>

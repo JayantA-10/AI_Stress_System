@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}{{ student.username }} — StressAI{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div style="margin-bottom:1.25rem">
+    <a href="{{ url_for('counselor_dashboard') }}"
+       style="color:var(--muted); font-size:0.85rem; text-decoration:none">← Back to Counselor Dashboard</a>
+  </div>
+
+  <div class="page-header">
+    <h1>{{ student.username }}</h1>
+    <p>{{ student.email }} &nbsp;·&nbsp; {{ history | length }} check-in(s) logged</p>
+  </div>
+
+  {% if history %}
+    {% set latest = history[-1] %}
+
+    {# ── Latest Status ── #}
+    <div class="grid-3" style="margin-bottom:1rem">
+      <div class="card">
+        <div class="card-title">Current Stress Level</div>
+        <span class="badge badge-{{ latest.stress_prediction | lower }}" style="font-size:0.92rem; padding:0.35rem 1rem">
+          {{ latest.stress_prediction }}
+        </span>
+        <div style="font-size:0.8rem; color:var(--muted); margin-top:0.5rem">{{ latest.stress_confidence }}% confidence</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Burnout Risk</div>
+        <div class="stat-value" style="color:
+          {% if latest.burnout_risk > 70 %}var(--high)
+          {% elif latest.burnout_risk > 40 %}var(--mod)
+          {% else %}var(--low){% endif %}">
+          {{ latest.burnout_risk | int }}%
+        </div>
+        <div style="margin-top:0.6rem">
+          <div class="progress-wrap">
+            <div class="progress-bar pb-{{ latest.stress_prediction | lower }}" style="width:{{ latest.burnout_risk }}%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Counselor Alert</div>
+        {% if latest.alert_sent %}
+          <span class="badge" style="background:var(--high-bg); color:var(--high); font-size:0.9rem">⚠️ Alert Triggered</span>
+          <div style="font-size:0.78rem; color:var(--muted); margin-top:0.5rem">Intervention recommended</div>
+        {% else %}
+          <span class="badge badge-low">✅ No Alert</span>
+          <div style="font-size:0.78rem; color:var(--muted); margin-top:0.5rem">Student appears stable</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Latest Recommendation ── #}
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Latest AI Recommendation</div>
+      <p style="font-size:0.95rem; line-height:1.65">{{ latest.suggested_action }}</p>
+    </div>
+
+    {# ── Burnout History Chart ── #}
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Burnout Risk History</div>
+      <div style="height:200px; position:relative">
+        <canvas id="burnoutChart"></canvas>
+      </div>
+    </div>
+
+    {# ── History Table ── #}
+    <div class="card">
+      <div class="card-title">Full History</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Stress Level</th>
+            <th>Burnout Risk</th>
+            <th>Confidence</th>
+            <th>Alert</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in history | reverse %}
+          <tr>
+            <td>{{ r.created_at.strftime("%b %d, %Y") }}</td>
+            <td><span class="badge badge-{{ r.stress_prediction | lower }}">{{ r.stress_prediction }}</span></td>
+            <td>{{ r.burnout_risk | int }}%</td>
+            <td style="color:var(--muted)">{{ r.stress_confidence }}%</td>
+            <td>{% if r.alert_sent %}<span style="color:var(--high)">⚠️</span>{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      const data = {{ chart_data | tojson }};
+      new Chart(document.getElementById('burnoutChart'), {
+        type: 'line',
+        data: {
+          labels: data.dates,
+          datasets: [{ label: 'Burnout %', data: data.burnout,
+            borderColor: '#c0392b', backgroundColor: 'rgba(192,57,43,0.07)',
+            borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true }]
+        },
+        options: {
+          scales: {
+            y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#e2ddd6' } },
+            x: { grid: { display: false } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    </script>
+
+  {% else %}
+  <div class="card empty-state">
+    <div class="icon">📋</div>
+    <h3>No check-ins yet</h3>
+    <p>This student hasn't logged any data yet.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

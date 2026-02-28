@@ -1,92 +1,116 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>AI Stress Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Dashboard — StressAI{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>Hello, {{ current_user.username }} 👋</h1>
+    <p>Here's your latest stress assessment.</p>
+  </div>
 
-<div class="layout">
+  {% if result %}
+    {% set level   = result.stress_prediction %}
+    {% set burnout = result.burnout_risk | int %}
 
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <h2>StressAI</h2>
-        <a href="/dashboard" class="active">Overview</a>
-        <a href="/daily_form">Daily Log</a>
-        <a href="/analytics">Analytics</a>
-        <a href="/logout">Logout</a>
+    {# ── High Risk Alert Banner ── #}
+    {% if level == 'High' or burnout > 70 %}
+    <div class="alert-banner">
+      <span style="font-size:1.2rem">🚨</span>
+      <div>
+        <strong>High stress detected.</strong>
+        Your counselor has been notified. Please consider taking a break or reaching out for support today.
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Top Stats ── #}
+    <div class="grid-3" style="margin-bottom:1rem">
+
+      <div class="card">
+        <div class="card-title">Stress Level</div>
+        <div style="margin-bottom:0.4rem">
+          <span class="badge badge-{{ level | lower }}">{{ level }}</span>
+        </div>
+        <div style="font-size:0.8rem; color:var(--muted)">{{ result.stress_confidence }}% model confidence</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Burnout Risk</div>
+        <div class="stat-value" style="color:
+          {% if burnout > 70 %}var(--high)
+          {% elif burnout > 40 %}var(--mod)
+          {% else %}var(--low){% endif %}">
+          {{ burnout }}%
+        </div>
+        <div style="margin-top:0.6rem">
+          <div class="progress-wrap">
+            <div class="progress-bar pb-{{ level | lower }}" style="width:{{ burnout }}%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Last Updated</div>
+        <div style="font-size:0.95rem; font-weight:500">{{ result.created_at.strftime("%b %d, %Y") }}</div>
+        <div style="font-size:0.8rem; color:var(--muted); margin-top:0.2rem">{{ result.created_at.strftime("%I:%M %p") }}</div>
+        <a href="{{ url_for('daily_form') }}"
+           style="display:inline-block; margin-top:0.8rem; font-size:0.82rem; color:var(--accent); text-decoration:none; font-weight:500">
+          + Log today →
+        </a>
+      </div>
+
     </div>
 
-    <!-- Main Content -->
-    <div class="main">
-
-        <!-- Top Bar -->
-        <div class="topbar">
-            <h2>Welcome Back, {{ current_user.username }}</h2>
-        </div>
-
-        {% if result %}
-        <!-- Stats Cards -->
-        <div class="cards">
-
-            <div class="card stat">
-                <h4>Stress Level</h4>
-                <h2>{{ result.stress_prediction }}</h2>
-            </div>
-
-            <div class="card stat">
-                <h4>Confidence</h4>
-                <h2>{{ result.stress_confidence }}%</h2>
-            </div>
-
-            <div class="card stat">
-                <h4>Burnout Risk</h4>
-                <h2>{{ result.burnout_risk }}%</h2>
-            </div>
-
-        </div>
-
-        <!-- Chart Section -->
-        <div class="card">
-            <h3>Stress Confidence Trend</h3>
-            <canvas id="stressChart" data-stress-value="{{ result.stress_confidence if result else 0 }}"></canvas>
-        </div>
-
-        <!-- Suggestion Section -->
-        <div class="card">
-            <h3>AI Recommendation</h3>
-            <p>{{ result.suggested_action }}</p>
-        </div>
-
-        {% else %}
-        <div class="card">
-            <p>No stress data available yet.</p>
-            <a href="/daily_form">Add Daily Log</a>
-        </div>
-        {% endif %}
-
+    {# ── AI Recommendation ── #}
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">AI Recommendation</div>
+      <p style="font-size:0.95rem; line-height:1.65">{{ result.suggested_action }}</p>
     </div>
+
+    {# ── Recent History Table ── #}
+    {% if history and history | length > 1 %}
+    <div class="card">
+      <div class="card-title">Recent History</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Level</th>
+            <th>Burnout Risk</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in history %}
+          <tr>
+            <td>{{ r.created_at.strftime("%b %d") }}</td>
+            <td><span class="badge badge-{{ r.stress_prediction | lower }}">{{ r.stress_prediction }}</span></td>
+            <td>
+              <div style="display:flex; align-items:center; gap:0.5rem">
+                <div class="progress-wrap" style="width:75px">
+                  <div class="progress-bar pb-{{ r.stress_prediction | lower }}" style="width:{{ r.burnout_risk }}%"></div>
+                </div>
+                <span style="font-size:0.82rem">{{ r.burnout_risk | int }}%</span>
+              </div>
+            </td>
+            <td style="color:var(--muted); font-size:0.85rem">{{ r.stress_confidence }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="margin-top:1rem">
+        <a href="{{ url_for('analytics') }}" class="btn btn-outline" style="font-size:0.83rem">View Full Analytics →</a>
+      </div>
+    </div>
+    {% endif %}
+
+  {% else %}
+    <div class="card empty-state">
+      <div class="icon">📊</div>
+      <h3>No data yet</h3>
+      <p>Log your first daily check-in to see your stress prediction.</p>
+      <a href="{{ url_for('daily_form') }}" class="btn btn-primary">Log Today's Data</a>
+    </div>
+  {% endif %}
 
 </div>
-
-<script>
-const stressValue = parseFloat(document.getElementById('stressChart').dataset.stressValue);
-const stressData = [stressValue];
-new Chart(document.getElementById('stressChart'), {
-    type: 'line',
-    data: {
-        labels: ["Latest Entry"],
-        datasets: [{
-            label: "Stress Confidence %",
-            data: stressData,
-            borderColor: "#4f46e5",
-            fill: false,
-            tension: 0.4
-        }]
-    }
-});
-</script>
-
-</body>
-</html>
+{% endblock %}

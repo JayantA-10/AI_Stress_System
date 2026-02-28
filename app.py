@@ -1,6 +1,6 @@
 # app.py
 
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,7 +19,7 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 
-# DATABASE MODELS
+# ── DATABASE MODELS ───────────────────────────────────────────
 
 
 class User(UserMixin, db.Model):
@@ -27,12 +27,13 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(100), unique=True)
     email = db.Column(db.String(100))
     password = db.Column(db.String(200))
+    role = db.Column(db.String(20), default="student")  # FIX: added role field
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class DailyStressLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # FIX: added FK
     study_hours = db.Column(db.Float)
     sleep_hours = db.Column(db.Float)
     mood_level = db.Column(db.Integer)
@@ -44,12 +45,15 @@ class DailyStressLog(db.Model):
 
 class StressPredictionResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))  # FIX: added FK
     stress_prediction = db.Column(db.String(50))
     stress_confidence = db.Column(db.Float)
     burnout_risk = db.Column(db.Float)
     suggested_action = db.Column(db.String(300))
+    alert_sent = db.Column(db.Boolean, default=False)  # FIX: added alert flag
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='predictions')
 
 
 @login_manager.user_loader
@@ -57,58 +61,40 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-
-# RULE-BASED AI LAYER
+# ── RULE-BASED AI LAYER ───────────────────────────────────────
 
 
 def rule_based_logic(data, predicted_level, confidence):
     burnout_risk = 0
-    stress_weight_adjustment = 0
 
-    
     # Sleep Deprivation
-    
     if data['sleep_hours'] < 6:
         burnout_risk += 20
-        stress_weight_adjustment += 5
 
-    
-    #  Overwork + Low Mood
-    
+    # Overwork + Low Mood
     if data['study_hours'] > 6 and data['mood_level'] < 4:
         burnout_risk += 30
-        stress_weight_adjustment += 10
 
-    
-    #  Declining Performance
-    
+    # Declining Performance
     if data['performance_trend'] == -1:
         burnout_risk += 20
 
-    
-    #  High Assignment Pressure
-    
+    # High Assignment Pressure
     if data['assignment_pressure'] > 8:
         burnout_risk += 25
 
-    
-    #  Low Study Consistency
-    
+    # Low Study Consistency
     if data['study_consistency'] < 4:
         burnout_risk += 15
 
-    
     # Adjust Based on ML Confidence
-    
     if predicted_level == "High" and confidence > 80:
         burnout_risk += 15
 
     # Cap at 100%
     burnout_risk = min(burnout_risk, 100)
 
-    
     # Suggested Action Logic
-    
     if burnout_risk > 70:
         suggestion = "Critical burnout risk. Immediate rest and academic counseling recommended."
     elif burnout_risk > 40:
@@ -119,7 +105,7 @@ def rule_based_logic(data, predicted_level, confidence):
     return burnout_risk, suggestion
 
 
-# ROUTES
+# ── ROUTES ────────────────────────────────────────────────────
 
 
 @app.route("/")
@@ -133,8 +119,14 @@ def register():
         username = request.form["username"]
         email = request.form["email"]
         password = generate_password_hash(request.form["password"])
+        role = request.form.get("role", "student")  # FIX: capture role from form
 
-        new_user = User(username=username, email=email, password=password)
+        # FIX: check for duplicate username
+        if User.query.filter_by(username=username).first():
+            flash("Username already exists. Please choose another.")
+            return redirect(url_for("register"))
+
+        new_user = User(username=username, email=email, password=password, role=role)
         db.session.add(new_user)
         db.session.commit()
 
@@ -151,6 +143,9 @@ def login():
 
         if user and check_password_hash(user.password, request.form["password"]):
             login_user(user)
+            # FIX: redirect counselors to their own dashboard
+            if user.role == "counselor":
+                return redirect(url_for("counselor_dashboard"))
             return redirect(url_for("dashboard"))
         else:
             flash("Invalid Credentials")
@@ -203,13 +198,16 @@ def daily_form():
 
         # Rule-based logic
         burnout, suggestion = rule_based_logic({
-        "study_hours": study_hours,
-        "sleep_hours": sleep_hours,
-        "mood_level": mood_level,
-        "assignment_pressure": assignment_pressure,
-        "study_consistency": study_consistency,
-        "performance_trend": performance_trend
+            "study_hours": study_hours,
+            "sleep_hours": sleep_hours,
+            "mood_level": mood_level,
+            "assignment_pressure": assignment_pressure,
+            "study_consistency": study_consistency,
+            "performance_trend": performance_trend
         }, predicted_level, confidence)
+
+        # FIX: auto-flag alert for high risk students
+        alert_sent = (burnout > 70 or predicted_level == "High")
 
         # Save prediction
         result = StressPredictionResult(
@@ -217,7 +215,8 @@ def daily_form():
             stress_prediction=predicted_level,
             stress_confidence=confidence,
             burnout_risk=burnout,
-            suggested_action=suggestion
+            suggested_action=suggestion,
+            alert_sent=alert_sent
         )
         db.session.add(result)
         db.session.commit()
@@ -230,11 +229,16 @@ def daily_form():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    latest_result = StressPredictionResult.query.filter_by(user_id=current_user.id).order_by(
-        StressPredictionResult.created_at.desc()
-    ).first()
+    latest_result = StressPredictionResult.query.filter_by(
+        user_id=current_user.id
+    ).order_by(StressPredictionResult.created_at.desc()).first()
 
-    return render_template("dashboard.html", result=latest_result)
+    # FIX: also pass recent history for the dashboard table
+    history = StressPredictionResult.query.filter_by(
+        user_id=current_user.id
+    ).order_by(StressPredictionResult.created_at.desc()).limit(7).all()
+
+    return render_template("dashboard.html", result=latest_result, history=history)
 
 
 @app.route("/analytics")
@@ -242,21 +246,107 @@ def dashboard():
 def analytics():
     stress_results = StressPredictionResult.query.filter_by(
         user_id=current_user.id
-    ).all()
+    ).order_by(StressPredictionResult.created_at.asc()).all()
 
-    stress_levels = [r.stress_confidence for r in stress_results]
+    # FIX: was only passing stress_confidence — now passing full chart data
+    chart_data = {
+        "dates":      [r.created_at.strftime("%b %d") for r in stress_results],
+        "burnout":    [r.burnout_risk for r in stress_results],
+        "confidence": [r.stress_confidence for r in stress_results],
+        "levels":     [r.stress_prediction for r in stress_results],
+    }
 
-    return render_template("analytics.html", stress_levels=stress_levels)
+    counts = {"Low": 0, "Moderate": 0, "High": 0}
+    for r in stress_results:
+        if r.stress_prediction in counts:
+            counts[r.stress_prediction] += 1
+
+    return render_template(
+        "analytics.html",
+        chart_data=chart_data,
+        counts=counts,
+        results=stress_results
+    )
 
 
+# ── COUNSELOR DASHBOARD (NEW) ─────────────────────────────────
 
-# INIT DATABASE
+
+@app.route("/counselor")
+@login_required
+def counselor_dashboard():
+    # Guard: only counselors can access
+    if current_user.role != "counselor":
+        flash("Access denied. Counselors only.")
+        return redirect(url_for("dashboard"))
+
+    students = User.query.filter_by(role="student").all()
+    student_data = []
+
+    for student in students:
+        latest = StressPredictionResult.query.filter_by(
+            user_id=student.id
+        ).order_by(StressPredictionResult.created_at.desc()).first()
+
+        student_data.append({
+            "id":       student.id,
+            "username": student.username,
+            "email":    student.email,
+            "latest":   latest
+        })
+
+    # Sort: High risk first, then Moderate, then Low, then no data
+    def risk_order(s):
+        if not s["latest"]:
+            return 3
+        return {"High": 0, "Moderate": 1, "Low": 2}.get(s["latest"].stress_prediction, 3)
+
+    student_data.sort(key=risk_order)
+
+    high_risk_count = sum(1 for s in student_data if s["latest"] and s["latest"].stress_prediction == "High")
+    alert_count     = sum(1 for s in student_data if s["latest"] and s["latest"].alert_sent)
+
+    return render_template(
+        "counselor.html",
+        student_data=student_data,
+        high_risk_count=high_risk_count,
+        alert_count=alert_count
+    )
+
+
+@app.route("/counselor/student/<int:user_id>")
+@login_required
+def student_detail(user_id):
+    if current_user.role != "counselor":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    student = User.query.get_or_404(user_id)
+    history = StressPredictionResult.query.filter_by(
+        user_id=user_id
+    ).order_by(StressPredictionResult.created_at.asc()).all()
+
+    chart_data = {
+        "dates":   [r.created_at.strftime("%b %d") for r in history],
+        "burnout": [r.burnout_risk for r in history],
+        "levels":  [r.stress_prediction for r in history],
+    }
+
+    return render_template(
+        "student_detail.html",
+        student=student,
+        history=history,
+        chart_data=chart_data
+    )
+
+
+# ── INIT DATABASE ─────────────────────────────────────────────
 
 
 if __name__ == "__main__":
-    if not os.path.exists("stress_system.db"):
-        with app.app_context():
-            db.create_all()
-            print("Database Created")
+    # FIX: always run db.create_all() — safe even if tables already exist
+    with app.app_context():
+        db.create_all()
+        print("Database ready.")
 
     app.run(debug=True)

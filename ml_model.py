@@ -4,19 +4,33 @@ import joblib
 import numpy as np
 
 # Load saved model and encoder
-model = joblib.load("model.pkl")
-label_encoder = joblib.load("label_encoder.pkl")
+# FIX: wrapped in try/except so Flask gives a clear error if files are missing
+try:
+    model = joblib.load("model.pkl")
+    label_encoder = joblib.load("label_encoder.pkl")
+except FileNotFoundError:
+    raise FileNotFoundError(
+        "model.pkl or label_encoder.pkl not found. "
+        "Please run train_model.py first to generate these files."
+    )
+
 
 def predict_stress(features):
     """
+    Predicts stress level from input features.
+
     features = [
-        study_hours,
-        sleep_hours,
-        mood_level,
-        assignment_pressure,
-        study_consistency,
-        performance_trend
+        study_hours,        (float)
+        sleep_hours,        (float)
+        mood_level,         (int 1-10)
+        assignment_pressure,(int 1-10)
+        study_consistency,  (int 1-10)
+        performance_trend   (int: -1, 0, 1)
     ]
+
+    Returns:
+        prediction_label (str): "Low", "Moderate", or "High"
+        confidence (float):     percentage confidence (0-100)
     """
 
     features_array = np.array(features).reshape(1, -1)
