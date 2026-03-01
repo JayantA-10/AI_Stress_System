@@ -1,17 +1,34 @@
 # app.py
 
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from ml_model import predict_stress
 import os
+import requests as http_requests
+
+# ── Google OAuth ──────────────────────────────────────────────
+from authlib.integrations.flask_client import OAuth
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'supersecretkey'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'supersecretkey')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///stress_system.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Google OAuth credentials (set these as environment variables)
+GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -26,8 +43,10 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True)
     email = db.Column(db.String(100))
-    password = db.Column(db.String(200))
-    role = db.Column(db.String(20), default="student")  # FIX: added role field
+    password = db.Column(db.String(200), nullable=True)   # nullable: Google users have no password
+    role = db.Column(db.String(20), default="student")
+    google_id = db.Column(db.String(200), unique=True, nullable=True)  # Google OAuth ID
+    avatar = db.Column(db.String(500), nullable=True)     # Google profile picture URL
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -192,12 +211,13 @@ def login():
     if request.method == "POST":
         user = User.query.filter_by(username=request.form["username"]).first()
 
-        if user and check_password_hash(user.password, request.form["password"]):
+        if user and user.password and check_password_hash(user.password, request.form["password"]):
             login_user(user)
-            # FIX: redirect counselors to their own dashboard
             if user.role == "counselor":
                 return redirect(url_for("counselor_dashboard"))
             return redirect(url_for("dashboard"))
+        elif user and not user.password:
+            flash("This account uses Google Sign-In. Please click 'Sign in with Google'.")
         else:
             flash("Invalid Credentials")
 
@@ -210,6 +230,71 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
+
+
+# ── GOOGLE OAUTH ROUTES ───────────────────────────────────────
+
+@app.route("/login/google")
+def google_login():
+    redirect_uri = url_for("google_callback", _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+
+@app.route("/login/google/callback")
+def google_callback():
+    try:
+        token = google.authorize_access_token()
+    except Exception as e:
+        flash(f"Google login failed: {str(e)}")
+        return redirect(url_for("login"))
+
+    user_info = token.get("userinfo")
+    if not user_info:
+        flash("Could not get user info from Google.")
+        return redirect(url_for("login"))
+
+    google_id = user_info.get("sub")
+    email     = user_info.get("email")
+    name      = user_info.get("name", email.split("@")[0])
+    avatar    = user_info.get("picture", "")
+
+    # Check if user already exists by google_id or email
+    user = User.query.filter_by(google_id=google_id).first()
+    if not user:
+        user = User.query.filter_by(email=email).first()
+
+    if user:
+        # Existing user — update Google fields if missing
+        if not user.google_id:
+            user.google_id = google_id
+        if not user.avatar:
+            user.avatar = avatar
+        db.session.commit()
+    else:
+        # Brand new user — create account automatically
+        username = name.replace(" ", "").lower()
+        # Ensure username is unique
+        base = username
+        counter = 1
+        while User.query.filter_by(username=username).first():
+            username = f"{base}{counter}"
+            counter += 1
+
+        user = User(
+            username=username,
+            email=email,
+            password=None,
+            role="student",
+            google_id=google_id,
+            avatar=avatar,
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    login_user(user)
+    if user.role == "counselor":
+        return redirect(url_for("counselor_dashboard"))
+    return redirect(url_for("dashboard"))
 
 @app.route("/daily_form", methods=["GET", "POST"])
 @login_required
@@ -408,6 +493,119 @@ def student_detail(user_id):
         chart_data=chart_data
     )
 
+
+
+
+# ── AI COUNSELOR CHAT ─────────────────────────────────────────
+
+
+@app.route("/chat")
+@login_required
+def chat():
+    # Fetch student's latest stress data to give AI context
+    latest = StressPredictionResult.query.filter_by(
+        user_id=current_user.id
+    ).order_by(StressPredictionResult.created_at.desc()).first()
+
+    return render_template("chat.html", latest=latest)
+
+
+@app.route("/api/chat", methods=["POST"])
+@login_required
+def api_chat():
+
+    data = request.get_json()
+    messages = data.get("messages", [])
+
+    # Fetch student's latest stress result for context
+    latest = StressPredictionResult.query.filter_by(
+        user_id=current_user.id
+    ).order_by(StressPredictionResult.created_at.desc()).first()
+
+    # Fetch last 5 daily logs for extra context
+    recent_logs = DailyStressLog.query.filter_by(
+        user_id=current_user.id
+    ).order_by(DailyStressLog.created_at.desc()).limit(5).all()
+
+    # Build student context summary for the AI
+    if latest:
+        stress_context = f"""
+Current Student Profile:
+- Name: {current_user.username}
+- Latest Stress Level: {latest.stress_prediction}
+- Burnout Risk: {latest.burnout_risk}%
+- Model Confidence: {latest.stress_confidence}%
+- Last Recommendation: {latest.suggested_action}
+- Alert Triggered: {"Yes" if latest.alert_sent else "No"}
+"""
+    else:
+        stress_context = f"Student {current_user.username} has not logged any stress data yet."
+
+    if recent_logs:
+        log_lines = []
+        for log in recent_logs:
+            log_lines.append(
+                f"  - {log.created_at.strftime('%b %d')}: "
+                f"Study={log.study_hours}h, Sleep={log.sleep_hours}h, "
+                f"Mood={log.mood_level}/10, Pressure={log.assignment_pressure}/10"
+            )
+        stress_context += "\nRecent Daily Logs:\n" + "\n".join(log_lines)
+
+    system_prompt = f"""You are a warm, empathetic AI student counselor for an academic stress monitoring system called StressAI.
+
+Your role is to:
+- Provide emotional support and practical advice to students experiencing academic stress
+- Suggest evidence-based coping strategies (breathing exercises, time management, sleep hygiene)
+- Recommend professional help when stress levels are critically high
+- Be encouraging, non-judgmental, and student-friendly
+- Keep responses concise and actionable (2-4 sentences unless more detail is needed)
+- Never diagnose medical conditions — always recommend seeing a professional for serious concerns
+
+You have access to this student's real stress data:
+{stress_context}
+
+Use this data naturally in your responses — acknowledge their stress level, reference their recent patterns, and tailor advice to their specific situation. If their burnout risk is above 70%, gently but clearly encourage them to seek real counseling support."""
+
+    # ── Get API key from environment variable ──
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"reply": "⚠️ API key not set. Please add your ANTHROPIC_API_KEY to your environment variables."}), 500
+
+    try:
+        response = http_requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01"
+            },
+            json={
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 1024,
+                "system": system_prompt,
+                "messages": messages
+            },
+            timeout=30
+        )
+
+        # Check for API errors
+        if response.status_code != 200:
+            error_info = response.json()
+            error_msg = error_info.get("error", {}).get("message", "Unknown API error")
+            return jsonify({"reply": f"API Error: {error_msg}"}), 500
+
+        result = response.json()
+        reply = result["content"][0]["text"]
+        return jsonify({"reply": reply})
+
+    except http_requests.exceptions.Timeout:
+        return jsonify({"reply": "The request timed out. Please try again."}), 500
+    except http_requests.exceptions.ConnectionError:
+        return jsonify({"reply": "Cannot connect to the AI service. Please check your internet connection."}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # prints full error in terminal
+        return jsonify({"reply": f"An error occurred: {str(e)}"}), 500
 
 # ── INIT DATABASE ─────────────────────────────────────────────
 

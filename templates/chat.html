@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}AI Counselor — StressAI{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 780px">
+  <div class="page-header">
+    <h1>AI Counselor</h1>
+    <p>A safe space to talk about stress, anxiety, and academic pressure. Everything stays private.</p>
+  </div>
+
+  {# ── Student Stress Context Card ── #}
+  {% if latest %}
+  <div class="card" style="margin-bottom:1.25rem; display:flex; align-items:center; gap:1.25rem; padding:1rem 1.25rem">
+    <div style="font-size:2rem">
+      {% if latest.stress_prediction == 'High' %}🔴
+      {% elif latest.stress_prediction == 'Moderate' %}🟡
+      {% else %}🟢{% endif %}
+    </div>
+    <div style="flex:1">
+      <div style="font-size:0.72rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin-bottom:0.2rem">
+        Your Current Status
+      </div>
+      <div style="font-weight:600; font-size:0.95rem">
+        Stress: <span class="badge badge-{{ latest.stress_prediction | lower }}">{{ latest.stress_prediction }}</span>
+        &nbsp;·&nbsp; Burnout Risk: <strong>{{ latest.burnout_risk | int }}%</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-top:0.2rem">
+        The AI counselor is aware of your stress data and will tailor its responses to you.
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Chat Window ── #}
+  <div class="card" style="padding:0; overflow:hidden">
+
+    {# Message feed #}
+    <div id="chat-feed" style="
+      height: 440px; overflow-y: auto; padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1rem;
+      background: var(--bg);
+    ">
+      {# Welcome message #}
+      <div class="msg msg-ai">
+        <div class="msg-bubble msg-bubble-ai">
+          👋 Hi {{ current_user.username }}! I'm your AI counselor. I can see your current stress profile and I'm here to help.<br><br>
+          Feel free to share what's on your mind — whether it's academic pressure, sleep issues, or just needing someone to talk to. What's been going on lately?
+        </div>
+      </div>
+    </div>
+
+    {# Suggested prompts #}
+    <div id="suggestions" style="
+      padding: 0.75rem 1.25rem; border-top: 1px solid var(--border);
+      display: flex; gap: 0.5rem; flex-wrap: wrap; background: var(--card);
+    ">
+      <span style="font-size:0.75rem; color:var(--muted); align-self:center; margin-right:0.25rem">Try:</span>
+      {% set prompts = [
+        "I'm feeling overwhelmed",
+        "Help me manage my time",
+        "I can't sleep properly",
+        "How do I reduce exam stress?"
+      ] %}
+      {% for p in prompts %}
+      <button class="suggestion-btn" onclick="sendSuggestion(this)">{{ p }}</button>
+      {% endfor %}
+    </div>
+
+    {# Input area #}
+    <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border); background: var(--card); display:flex; gap:0.75rem; align-items:flex-end">
+      <textarea
+        id="user-input"
+        placeholder="Type your message..."
+        rows="1"
+        style="
+          flex:1; padding:0.65rem 0.9rem; border:1.5px solid var(--border);
+          border-radius:10px; font-size:0.9rem; font-family:inherit;
+          resize:none; outline:none; background:var(--bg); color:var(--text);
+          transition:border-color 0.15s; line-height:1.5; max-height:120px;
+        "
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+        onfocus="this.style.borderColor='var(--accent)'; this.style.background='white'"
+        onblur="this.style.borderColor='var(--border)'; this.style.background='var(--bg)'"
+      ></textarea>
+      <button id="send-btn" onclick="sendMessage()" class="btn btn-primary" style="padding:0.65rem 1.25rem; flex-shrink:0">
+        Send
+      </button>
+    </div>
+
+  </div>
+
+  <p style="text-align:center; font-size:0.75rem; color:var(--muted); margin-top:0.75rem">
+    This AI counselor provides supportive guidance only. For serious mental health concerns, please speak with a qualified professional.
+  </p>
+</div>
+
+<style>
+  .msg { display: flex; }
+  .msg-ai  { justify-content: flex-start; }
+  .msg-user{ justify-content: flex-end; }
+
+  .msg-bubble {
+    max-width: 75%; padding: 0.75rem 1rem;
+    border-radius: 14px; font-size: 0.9rem; line-height: 1.6;
+  }
+  .msg-bubble-ai {
+    background: white; border: 1px solid var(--border);
+    border-bottom-left-radius: 4px; color: var(--text);
+  }
+  .msg-bubble-user {
+    background: var(--accent); color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg-typing {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0.75rem 1rem; background: white;
+    border: 1px solid var(--border); border-radius: 14px;
+    border-bottom-left-radius: 4px; width: fit-content;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); animation: bounce 1.2s infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%            { transform: translateY(-6px); opacity: 1; }
+  }
+
+  .suggestion-btn {
+    padding: 0.3rem 0.75rem; border-radius: 99px; font-size: 0.78rem;
+    border: 1.5px solid var(--border); background: var(--bg);
+    color: var(--text); cursor: pointer; font-family: inherit;
+    transition: all 0.15s;
+  }
+  .suggestion-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+  #chat-feed::-webkit-scrollbar { width: 4px; }
+  #chat-feed::-webkit-scrollbar-track { background: transparent; }
+  #chat-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+</style>
+
+<script>
+  // Conversation history sent to API each time
+  let history = [];
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function sendSuggestion(btn) {
+    document.getElementById('user-input').value = btn.textContent;
+    // Hide suggestions after first use
+    document.getElementById('suggestions').style.display = 'none';
+    sendMessage();
+  }
+
+  function scrollToBottom() {
+    const feed = document.getElementById('chat-feed');
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function appendMessage(text, role) {
+    const feed = document.getElementById('chat-feed');
+    const wrap = document.createElement('div');
+    wrap.className = `msg msg-${role === 'user' ? 'user' : 'ai'}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = `msg-bubble msg-bubble-${role === 'user' ? 'user' : 'ai'}`;
+    // Preserve line breaks
+    bubble.innerHTML = text.replace(/\n/g, '<br>');
+
+    wrap.appendChild(bubble);
+    feed.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function showTyping() {
+    const feed = document.getElementById('chat-feed');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg msg-ai';
+    wrap.id = 'typing-indicator';
+    wrap.innerHTML = `<div class="msg-typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+    feed.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Hide suggestions after first message
+    document.getElementById('suggestions').style.display = 'none';
+
+    // Show user message
+    appendMessage(text, 'user');
+    input.value = '';
+    input.style.height = 'auto';
+
+    // Disable send while waiting
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    // Add to history
+    history.push({ role: 'user', content: text });
+
+    // Show typing dots
+    showTyping();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history })
+      });
+
+      const data = await res.json();
+      removeTyping();
+
+      const reply = data.reply || "Sorry, I couldn't process that. Please try again.";
+      appendMessage(reply, 'ai');
+
+      // Add AI reply to history for context
+      history.push({ role: 'assistant', content: reply });
+
+    } catch (err) {
+      removeTyping();
+      appendMessage("I'm having trouble connecting right now. Please try again in a moment.", 'ai');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Send';
+    input.focus();
+  }
+</script>
+
+{% endblock %}

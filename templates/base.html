@@ -175,7 +175,22 @@
       <a href="{{ url_for('dashboard') }}">Dashboard</a>
       <a href="{{ url_for('daily_form') }}">Log Today</a>
       <a href="{{ url_for('analytics') }}">Analytics</a>
+      <a href="{{ url_for('chat') }}">AI Counselor</a>
     {% endif %}
+    {# Google avatar or initial #}
+    <span style="display:flex;align-items:center;gap:0.5rem;margin-left:0.5rem;padding:0 0.5rem;border-left:1px solid var(--border)">
+      {% if current_user.avatar %}
+        <img src="{{ current_user.avatar }}" alt="avatar"
+             style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--border)">
+      {% else %}
+        <span style="width:28px;height:28px;border-radius:50%;background:var(--accent-bg);color:var(--accent);
+                     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.8rem;
+                     border:1.5px solid var(--border)">
+          {{ current_user.username[0].upper() }}
+        </span>
+      {% endif %}
+      <span style="font-size:0.82rem;color:var(--muted);font-weight:500">{{ current_user.username }}</span>
+    </span>
     <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
   </div>
 </nav>
