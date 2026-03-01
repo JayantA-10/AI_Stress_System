@@ -70,7 +70,7 @@
             {% if s.latest %}
             <div style="display:flex; align-items:center; gap:0.5rem">
               <div class="progress-wrap" style="width:75px">
-                <div class="progress-bar pb-{{ s.latest.stress_prediction | lower }}" style="width:{{ s.latest.burnout_risk }}%"></div>
+                <div class="progress-bar" style="width:{{ s.latest.burnout_risk }}%; background:var(--{{ s.latest.stress_prediction | lower }});"></div>
               </div>
               <span style="font-size:0.82rem">{{ s.latest.burnout_risk | int }}%</span>
             </div>
