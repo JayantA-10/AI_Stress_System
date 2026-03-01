@@ -105,6 +105,57 @@ def rule_based_logic(data, predicted_level, confidence):
     return burnout_risk, suggestion
 
 
+# ── AUTO PERFORMANCE TREND CALCULATOR ────────────────────────
+
+def auto_performance_trend(user_id):
+    """
+    Automatically calculates performance trend by comparing
+    this week's average mood & study consistency vs last week's.
+
+    Returns:
+         1  → Improving
+         0  → Stable
+        -1  → Declining
+    """
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    this_week_start = now - timedelta(days=7)
+    last_week_start = now - timedelta(days=14)
+
+    # This week's logs (last 7 days)
+    this_week = DailyStressLog.query.filter(
+        DailyStressLog.user_id == user_id,
+        DailyStressLog.created_at >= this_week_start
+    ).all()
+
+    # Last week's logs (7–14 days ago)
+    last_week = DailyStressLog.query.filter(
+        DailyStressLog.user_id == user_id,
+        DailyStressLog.created_at >= last_week_start,
+        DailyStressLog.created_at < this_week_start
+    ).all()
+
+    # Not enough history yet — default to Stable
+    if not this_week or not last_week:
+        return 0, "Stable (not enough history yet)"
+
+    # Score = average of mood_level + study_consistency (higher = better performance)
+    def avg_score(logs):
+        return sum(l.mood_level + l.study_consistency for l in logs) / len(logs)
+
+    this_score = avg_score(this_week)
+    last_score = avg_score(last_week)
+    diff = this_score - last_score
+
+    if diff > 1.5:
+        return 1, f"Improving (this week: {round(this_score,1)}, last week: {round(last_score,1)})"
+    elif diff < -1.5:
+        return -1, f"Declining (this week: {round(this_score,1)}, last week: {round(last_score,1)})"
+    else:
+        return 0, f"Stable (this week: {round(this_score,1)}, last week: {round(last_score,1)})"
+
+
 # ── ROUTES ────────────────────────────────────────────────────
 
 
@@ -163,15 +214,20 @@ def logout():
 @app.route("/daily_form", methods=["GET", "POST"])
 @login_required
 def daily_form():
-    if request.method == "POST":
-        study_hours = float(request.form["study_hours"])
-        sleep_hours = float(request.form["sleep_hours"])
-        mood_level = int(request.form["mood_level"])
-        assignment_pressure = int(request.form["assignment_pressure"])
-        study_consistency = int(request.form["study_consistency"])
-        performance_trend = int(request.form["performance_trend"])
+    # AUTO: calculate performance trend to show on the form before submit
+    performance_trend, trend_label = auto_performance_trend(current_user.id)
 
-        # Save daily log
+    if request.method == "POST":
+        study_hours        = float(request.form["study_hours"])
+        sleep_hours        = float(request.form["sleep_hours"])
+        mood_level         = int(request.form["mood_level"])
+        assignment_pressure= int(request.form["assignment_pressure"])
+        study_consistency  = int(request.form["study_consistency"])
+
+        # AUTO: recalculate trend at submit time (not from form input)
+        performance_trend, trend_label = auto_performance_trend(current_user.id)
+
+        # Save daily log with auto-calculated trend
         log = DailyStressLog(
             user_id=current_user.id,
             study_hours=study_hours,
@@ -179,7 +235,7 @@ def daily_form():
             mood_level=mood_level,
             assignment_pressure=assignment_pressure,
             study_consistency=study_consistency,
-            performance_trend=performance_trend
+            performance_trend=performance_trend   # auto-calculated
         )
         db.session.add(log)
         db.session.commit()
@@ -198,15 +254,15 @@ def daily_form():
 
         # Rule-based logic
         burnout, suggestion = rule_based_logic({
-            "study_hours": study_hours,
-            "sleep_hours": sleep_hours,
-            "mood_level": mood_level,
+            "study_hours":         study_hours,
+            "sleep_hours":         sleep_hours,
+            "mood_level":          mood_level,
             "assignment_pressure": assignment_pressure,
-            "study_consistency": study_consistency,
-            "performance_trend": performance_trend
+            "study_consistency":   study_consistency,
+            "performance_trend":   performance_trend
         }, predicted_level, confidence)
 
-        # FIX: auto-flag alert for high risk students
+        # Auto-flag alert for high risk students
         alert_sent = (burnout > 70 or predicted_level == "High")
 
         # Save prediction
@@ -223,7 +279,12 @@ def daily_form():
 
         return redirect(url_for("dashboard"))
 
-    return render_template("daily_form.html")
+    # Pass trend info to the form so student can see what was detected
+    return render_template(
+        "daily_form.html",
+        performance_trend=performance_trend,
+        trend_label=trend_label
+    )
 
 
 @app.route("/dashboard")
@@ -295,13 +356,21 @@ def counselor_dashboard():
             "latest":   latest
         })
 
-    # Sort: High risk first, then Moderate, then Low, then no data
+    # Sort by stress level group (High→Moderate→Low→No data)
+    # then by burnout % descending within each group
+    # so the most at-risk student is always at the very top
     def risk_order(s):
         if not s["latest"]:
-            return 3
-        return {"High": 0, "Moderate": 1, "Low": 2}.get(s["latest"].stress_prediction, 3)
+            return (3, 0)
+        level_rank   = {"High": 0, "Moderate": 1, "Low": 2}.get(s["latest"].stress_prediction, 3)
+        burnout_rank = -s["latest"].burnout_risk   # negative so higher burnout sorts first
+        return (level_rank, burnout_rank)
 
     student_data.sort(key=risk_order)
+
+    # Attach priority rank number for display in the table
+    for i, s in enumerate(student_data):
+        s["rank"] = i + 1
 
     high_risk_count = sum(1 for s in student_data if s["latest"] and s["latest"].stress_prediction == "High")
     alert_count     = sum(1 for s in student_data if s["latest"] and s["latest"].alert_sent)

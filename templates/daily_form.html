@@ -54,13 +54,30 @@
         </div>
       </div>
 
+      {# ── Auto-detected Performance Trend ── #}
       <div class="form-group">
-        <label>Performance Trend <span class="hint">compared to last week</span></label>
-        <select name="performance_trend">
-          <option value="1">📈  Improving</option>
-          <option value="0" selected>➡️  Stable</option>
-          <option value="-1">📉  Declining</option>
-        </select>
+        <label>Performance Trend <span class="hint">auto-detected from your history</span></label>
+        <div style="
+          display: flex; align-items: center; gap: 0.75rem;
+          padding: 0.65rem 1rem; border-radius: 8px; border: 1.5px solid var(--border);
+          background: var(--bg); font-size: 0.9rem;">
+          {% if performance_trend == 1 %}
+            <span style="font-size:1.1rem">📈</span>
+            <span style="font-weight:600; color:var(--low)">Improving</span>
+            <span style="color:var(--muted); font-size:0.8rem; margin-left:auto">{{ trend_label }}</span>
+          {% elif performance_trend == -1 %}
+            <span style="font-size:1.1rem">📉</span>
+            <span style="font-weight:600; color:var(--high)">Declining</span>
+            <span style="color:var(--muted); font-size:0.8rem; margin-left:auto">{{ trend_label }}</span>
+          {% else %}
+            <span style="font-size:1.1rem">➡️</span>
+            <span style="font-weight:600; color:var(--mod)">Stable</span>
+            <span style="color:var(--muted); font-size:0.8rem; margin-left:auto">{{ trend_label }}</span>
+          {% endif %}
+        </div>
+        <div style="font-size:0.76rem; color:var(--muted); margin-top:0.35rem">
+          Calculated from your mood &amp; study consistency over the past 2 weeks.
+        </div>
       </div>
 
       <div style="display:flex; gap:0.75rem; margin-top:0.5rem">

@@ -44,6 +44,7 @@
     <table>
       <thead>
         <tr>
+          <th>#</th>
           <th>Student</th>
           <th>Stress Level</th>
           <th>Burnout Risk</th>
@@ -55,6 +56,21 @@
       <tbody>
         {% for s in student_data %}
         <tr>
+          <td>
+            <span style="
+              display:inline-flex; align-items:center; justify-content:center;
+              width:26px; height:26px; border-radius:50%; font-size:0.78rem; font-weight:700;
+              {% if s.latest and s.latest.stress_prediction == 'High' %}
+                background:var(--high-bg); color:var(--high);
+              {% elif s.latest and s.latest.stress_prediction == 'Moderate' %}
+                background:var(--mod-bg); color:var(--mod);
+              {% elif s.latest and s.latest.stress_prediction == 'Low' %}
+                background:var(--low-bg); color:var(--low);
+              {% else %}
+                background:var(--bg); color:var(--muted);
+              {% endif %}
+            ">{{ s.rank }}</span>
+          </td>
           <td>
             <div style="font-weight:500">{{ s.username }}</div>
             <div style="font-size:0.78rem; color:var(--muted)">{{ s.email }}</div>
@@ -70,7 +86,7 @@
             {% if s.latest %}
             <div style="display:flex; align-items:center; gap:0.5rem">
               <div class="progress-wrap" style="width:75px">
-                <div class="progress-bar" style="width:{{ s.latest.burnout_risk }}%; background:var(--{{ s.latest.stress_prediction | lower }});"></div>
+                <div class="progress-bar pb-{{ s.latest.stress_prediction | lower }}" style="width:{{ s.latest.burnout_risk }}%"></div>
               </div>
               <span style="font-size:0.82rem">{{ s.latest.burnout_risk | int }}%</span>
             </div>
